@@ -16,6 +16,7 @@ class ContextGNNBERT(torch.nn.Module):
         gnn_class="GATv2Conv", 
         hidden_channels=64,
         gnn_kwargs=dict(heads=1),
+        gnn_block_dropout=0.2,
         gnn_lin_kwargs={},
         non_linearity=torch.nn.ReLU(), # without an inplace=True arg
     ):
@@ -35,6 +36,7 @@ class ContextGNNBERT(torch.nn.Module):
             gnn_class=gnn_class, 
             hidden_channels=hidden_channels,
             gnn_kwargs=gnn_kwargs,
+            gnn_block_dropout=gnn_block_dropout,
             lin_kwargs=gnn_lin_kwargs,
             non_linearity=non_linearity,
         )
@@ -42,7 +44,11 @@ class ContextGNNBERT(torch.nn.Module):
         self.hetero_gnn = False
 
     
-    def forward(self, input_ids, attention_mask, token_type_ids, context_mask):
+    def forward(
+        self, input_ids, attention_mask, token_type_ids, context_mask, labels=None
+    ):
+        r"""placeholder labels argument is provided for the compatibility with
+        the huggingface dataset and Trainer api's compute_metrics."""
         
         seq_out, pooled_out = self.encoder(
             input_ids, 
@@ -71,9 +77,13 @@ class ContextGNNBERT(torch.nn.Module):
         gnn_class="GATv2Conv", 
         hidden_channels=64,
         gnn_kwargs=dict(heads=1),
+        gnn_block_dropout=0.2,
         lin_kwargs={},
         non_linearity=torch.nn.ReLU(), # without an inplace=True arg
     ):
+
+        # set num_labels to 1 for binary classification output size
+        num_labels = 1 if num_labels == 2 else num_labels
 
         gnn = torch.nn.ModuleList()
 
@@ -106,6 +116,7 @@ class ContextGNNBERT(torch.nn.Module):
                 gnn_kwargs=gnn_kwargs,
                 lin_kwargs=lin_kwargs,
                 non_linearity=non_linearity if i < num_gnn_blocks else None,
+                dropout=gnn_block_dropout if i < num_gnn_blocks else None,
             )
 
             gnn.append(gnn_block)

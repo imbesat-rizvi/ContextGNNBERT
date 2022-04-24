@@ -62,11 +62,11 @@ def vfuse_cols(
     return dataset
 
 def get_tokenizer_encoder(
-    model_name="bert-base-uncased", special_tokens=[],
+    encoder_model="bert-base-uncased", special_tokens=[],
 ):
 
-    tokenizer = AutoTokenizer.from_pretrained(model_name, Padding=True, Truncation=True)
-    encoder = AutoModel.from_pretrained(model_name)
+    tokenizer = AutoTokenizer.from_pretrained(encoder_model, Padding=True, Truncation=True)
+    encoder = AutoModel.from_pretrained(encoder_model)
 
     if special_tokens:
         additional_tokens = {"additional_special_tokens": special_tokens}

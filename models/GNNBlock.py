@@ -14,6 +14,7 @@ class GNNBlock(torch.nn.Module):
         gnn_kwargs=dict(heads=1),
         lin_kwargs={},
         non_linearity=torch.nn.ReLU(), # without an inplace=True arg
+        dropout=0.2,
     ):
 
         assert gnn_class in ("GATv2Conv", "GATConv", "GCNConv")
@@ -29,8 +30,14 @@ class GNNBlock(torch.nn.Module):
 
         self.non_linearity = non_linearity
 
+        self.dropout = None
+        if dropout is not None:
+            self.dropout = torch.nn.Dropout(p=dropout)
+
     def forward(self, node, edge_index):
         node = self.gnn(node, edge_index) + self.linear(node)
         if self.non_linearity is not None:
             node = self.non_linearity(node)
+        if self.dropout is not None:
+            node = self.dropout(node)
         return node
