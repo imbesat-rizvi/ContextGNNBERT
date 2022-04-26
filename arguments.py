@@ -4,14 +4,21 @@ from argparse import ArgumentParser
 parser = ArgumentParser(description="Arguments for ContextGNNBERT")
 parser.add_argument(
     "--dataset_name",
-    default="super_glue",
-    help="huggingface compatible dataset name to be loaded",
+    default="super_glue:boolq",
+    help="huggingface compatible dataset name to be loaded with its config "\
+        "name delimited using ':' in case config name is required",
 )
 
 parser.add_argument(
-    "--config_name",
-    default="boolq",
-    help="huggingface compatible config name of the dataset to be loaded",
+    "--label_col",
+    help="Label column name to be converted from string type to ClassLabel"\
+        "in case of a classification setting",
+)
+
+parser.add_argument(
+    "--pos_label",
+    help="Label name/number denoting positive class for reporting purposes in case"\
+        " of binary classification",
 )
 
 parser.add_argument(
@@ -109,7 +116,7 @@ parser.add_argument(
 parser.add_argument(
     "--batch_size",
     type=int,
-    default=32,
+    default=512,
     help="train, eval and test batch size",
 )
 

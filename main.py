@@ -30,6 +30,8 @@ import wandb
 def main(
     dataset_name="super_glue",
     config_name="boolq",
+    label_col=None,
+    pos_label=1,
     cols_for_context=["passage", "question"],
     context_masker="TFIDFContextMasker",
     context_mask_fn_kwargs={"percentile_cutoff": (75, 50)},
@@ -51,18 +53,32 @@ def main(
     no_class_weight=False,
 ):
 
-    # rename the HF dataset label col to labels as HF pipelines expect this name
-    label_col = "labels"
+    dataset = load_dataset(dataset_name, name=config_name)
     num_labels = None
-    cols_to_exl_in_model_inp = []
-    dataset = load_dataset(dataset_name, config_name)
 
-    for feat_name, feat_class in dataset["train"].features.items():
-        if isinstance(feat_class, ClassLabel):
-            dataset = dataset.rename_column(feat_name, label_col)
-            num_labels = feat_class.num_classes
-        else:
-            cols_to_exl_in_model_inp.append(feat_name)
+    if label_col is None:
+        for feat_name, feat_class in dataset["train"].features.items():
+            if isinstance(feat_class, ClassLabel):
+                label_col = feat_name
+                num_labels = feat_class.num_classes
+                break
+        print(f"No label col specified, inferred label col = {label_col}")
+
+    elif dataset["train"].features[label_col].dtype == "string":
+        dataset = dataset.class_encode_column(label_col)
+        num_labels = dataset["train"].features[label_col].num_classes
+
+    print(f"Num labels = {num_labels}")
+
+    # rename the HF dataset label col to labels as HF pipelines expect this name
+    dataset = dataset.rename_column(label_col, "labels")
+    label_col = "labels"
+    cols_to_exl_in_model_inp = [
+        i for i,j in dataset["train"].features.items() if not isinstance(j, ClassLabel)
+    ]
+
+    # print an overview of the dataset
+    print(dataset)
 
     if isinstance(cols_for_context, str):
         context_corpus_col = cols_for_context
@@ -148,21 +164,6 @@ def main(
         early_stopping_threshold=early_stopping_threshold,
     )
 
-    compute_metrics = partial(
-        compute_aprfbeta, 
-        prfbeta_kwargs=dict(average="macro"),
-    )
-
-    trainer = HFTrainer(
-        model=model,
-        args=train_args,
-        optimizers=(optimizer, scheduler),
-        train_dataset=dataset["train"].select(range(10)),
-        eval_dataset=dataset["validation"].select(range(10)),
-        compute_metrics=compute_metrics,
-        callbacks=[early_stopping],
-    )
-
     binary_class = num_labels==2
     labels = np.array(dataset["train"][label_col])
     
@@ -173,10 +174,38 @@ def main(
         # https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
         class_counts = np.bincount(labels)
         class_weight = class_counts[0]/class_counts[1]
+
+        if pos_label is None:
+            pos_label = 1
+
+        elif isinstance(pos_label, str):
+            print(f"Specified pos_label is {pos_label}", end=" ")
+            pos_label = dataset["train"].features[label_col].names.index(pos_label)
+            print(f"which is numerically represented as {pos_label}. "\
+                f"Setting pos_label to {pos_label} for evaluation.")
+        
+        prfbeta_kwargs = dict(average="binary", pos_label=pos_label)
+
     else:
         class_weight = compute_class_weight(
             "balanced", classes=np.unique(labels), y=labels
         )
+        prfbeta_kwargs = dict(average="macro")
+
+    compute_metrics = partial(
+        compute_aprfbeta, 
+        prfbeta_kwargs=prfbeta_kwargs,
+    )
+
+    trainer = HFTrainer(
+        model=model,
+        args=train_args,
+        optimizers=(optimizer, scheduler),
+        train_dataset=dataset["train"],
+        eval_dataset=dataset["validation"],
+        compute_metrics=compute_metrics,
+        callbacks=[early_stopping],
+    )
     
     if no_class_weight:
         trainer.register_loss_fn(binary_class, weight=None)
@@ -191,7 +220,7 @@ def main(
     else:
         # nothing to compare, write predictions to a file
         activations = trainer.predict(
-            dataset["test"].select(range(10)).remove_columns(label_col)
+            dataset["test"].remove_columns(label_col)
         ).predictions
         
         pred_labels = to_labels(activations)
@@ -204,7 +233,7 @@ def main(
         )
 
     pred_metrics = {
-        i: trainer.predict(dataset[i].select(range(10)), metric_key_prefix=i).metrics
+        i: trainer.predict(dataset[i], metric_key_prefix=i).metrics
         for i in dataset_for_metrics
     }
 
@@ -215,24 +244,30 @@ def main(
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    if len(args.hidden_channels) == 1:
-        args.hidden_channels = args.hidden_channels[0]
-    if len(args.cols_for_context) == 1:
-        args.cols_for_context = args.cols_for_context[0]
-
     wandb.login() # prompts for logging in if not done already
     wandb.init(
         project="ContextGNNBERT",
-        name=f"{args.dataset_name}-{args.config_name}-{args.encoder_model}",
-        tags=["ContextGNNBERT", args.dataset_name, args.config_name, args.encoder_model],
+        name=f"{args.dataset_name}-{args.encoder_model}",
+        tags=["ContextGNNBERT", args.dataset_name, args.encoder_model],
         group="ContextGNNBERT",
         entity="pensieves",
         config=args,
     )
 
+    dataset_name = args.dataset_name.split(":")
+    config_name = dataset_name[1] if len(dataset_name) == 2 else None
+    dataset_name = dataset_name[0]
+
+    if len(args.hidden_channels) == 1:
+        args.hidden_channels = args.hidden_channels[0]
+    if len(args.cols_for_context) == 1:
+        args.cols_for_context = args.cols_for_context[0]
+
     main(
-        dataset_name=args.dataset_name,
-        config_name=args.config_name,
+        dataset_name=dataset_name,
+        config_name=config_name,
+        label_col=args.label_col,
+        pos_label=args.pos_label,
         cols_for_context=args.cols_for_context,
         context_masker=args.context_masker,
         context_mask_fn_kwargs=args.context_mask_fn_kwargs,
