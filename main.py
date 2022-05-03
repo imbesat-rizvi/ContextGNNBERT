@@ -40,6 +40,7 @@ def main(
     context_mask_fn_kwargs={"percentile_cutoff": (75, 50)},
     truncation_strategy="only_first",
     encoder_model="bert-base-uncased",
+    trainable_encoder=False,
     classifier_net="GATv2Conv",
     gnn_kwargs=dict(heads=1),
     dropout=0.2,
@@ -123,6 +124,7 @@ def main(
 
         model = ContextGNNBERT(
             encoder=encoder,
+            trainable_encoder=trainable_encoder,
             num_labels=num_labels,
             gnn_class=classifier_net,
             gnn_kwargs=gnn_kwargs,
@@ -135,6 +137,7 @@ def main(
     else:
         model = FCNBERT(
             encoder=encoder,
+            trainable_encoder=trainable_encoder,
             num_labels=num_labels,
             num_layers=num_layers,
             hidden_channels=hidden_channels,
@@ -300,6 +303,7 @@ if __name__ == "__main__":
         context_mask_fn_kwargs=args.context_mask_fn_kwargs,
         truncation_strategy=args.truncation_strategy,
         encoder_model=args.encoder_model,
+        trainable_encoder=args.trainable_encoder,
         classifier_net=args.classifier_net,
         gnn_kwargs=args.gnn_kwargs,
         dropout=args.dropout,

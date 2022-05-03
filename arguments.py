@@ -64,6 +64,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--trainable_encoder",
+    action="store_true",
+    help="Specify this flag to make encoder trainable",
+)
+
+parser.add_argument(
     "--classifier_net",
     choices=["GATv2Conv", "GATConv", "GCNConv", "FCN"],
     default="GATv2Conv",
