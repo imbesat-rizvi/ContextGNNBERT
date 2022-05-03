@@ -4,10 +4,11 @@ from pathlib import Path
 from sklearn.utils.class_weight import compute_class_weight
 
 from datasets import load_dataset, ClassLabel
+
 # from datasets import DatasetDict
 
 from data_utils.hf_utils import (
-    hstack_cols, 
+    hstack_cols,
     get_tokenizer_encoder,
     tokenize_dataset,
 )
@@ -43,7 +44,7 @@ def main(
     gnn_kwargs=dict(heads=1),
     dropout=0.2,
     num_layers=3,
-    hidden_channels=[256,64],
+    hidden_channels=[256, 64],
     non_linearity="ReLU",
     num_train_epochs=50,
     batch_size=128,
@@ -77,7 +78,7 @@ def main(
     dataset = dataset.rename_column(label_col, "labels")
     label_col = "labels"
     cols_to_exl_in_model_inp = [
-        i for i,j in dataset["train"].features.items() if not isinstance(j, ClassLabel)
+        i for i, j in dataset["train"].features.items() if not isinstance(j, ClassLabel)
     ]
 
     # print an overview of the dataset
@@ -105,12 +106,14 @@ def main(
         context_corpus = dataset["train"]
         if not isinstance(cols_for_context, str):
             context_corpus = hstack_cols(
-                context_corpus, cols=cols_for_context, stacked_col_name=context_corpus_col
+                context_corpus,
+                cols=cols_for_context,
+                stacked_col_name=context_corpus_col,
             )
 
         context_masker = ContextMasker.__dict__[context_masker](
-            context_corpus[context_corpus_col], 
-            tokenizer=tokenizer, 
+            context_corpus[context_corpus_col],
+            tokenizer=tokenizer,
             **context_masker_init_kwargs,
         )
 
@@ -131,7 +134,7 @@ def main(
 
     else:
         model = FCNBERT(
-            encoder=encoder, 
+            encoder=encoder,
             num_labels=num_labels,
             num_layers=num_layers,
             hidden_channels=hidden_channels,
@@ -147,8 +150,8 @@ def main(
     run_name = f"{dataset_name}-{config_name}-{classifier_net}-{encoder_model}"
     trainer_dir = Path("trainer_outputs")
     trainer_dir.mkdir(parents=True, exist_ok=True)
-    output_dir = trainer_dir/run_name
-    
+    output_dir = trainer_dir / run_name
+
     train_args = TrainingArguments(
         run_name=run_name,
         report_to="wandb",
@@ -167,7 +170,9 @@ def main(
         save_total_limit=10,  # deletes older checkpoints on reaching this limit
     )
 
-    num_train_steps = int(np.ceil(len(dataset["train"]) * num_train_epochs / batch_size))
+    num_train_steps = int(
+        np.ceil(len(dataset["train"]) * num_train_epochs / batch_size)
+    )
     optimizer = optim.__dict__[optimizer_name](model.parameters(), **optimizer_kwargs)
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps
@@ -178,16 +183,16 @@ def main(
         early_stopping_threshold=early_stopping_threshold,
     )
 
-    binary_class = num_labels==2
+    binary_class = num_labels == 2
     labels = np.array(dataset["train"][label_col])
-    
+
     if binary_class:
-        # pos_weight of torch's BCEWithLogitsLoss expects 
+        # pos_weight of torch's BCEWithLogitsLoss expects
         # it in this way i.e. count(neg_class) / count(pos_class)
         # see the example explanation at:
         # https://pytorch.org/docs/stable/generated/torch.nn.BCEWithLogitsLoss.html
         class_counts = np.bincount(labels)
-        class_weight = class_counts[0]/class_counts[1]
+        class_weight = class_counts[0] / class_counts[1]
 
         if pos_label is None:
             pos_label = 1
@@ -195,9 +200,11 @@ def main(
         elif isinstance(pos_label, str):
             print(f"Specified pos_label is {pos_label}", end=" ")
             pos_label = dataset["train"].features[label_col].names.index(pos_label)
-            print(f"which is numerically represented as {pos_label}. "\
-                f"Setting pos_label to {pos_label} for evaluation.")
-        
+            print(
+                f"which is numerically represented as {pos_label}. "
+                f"Setting pos_label to {pos_label} for evaluation."
+            )
+
         prfbeta_kwargs = dict(average="binary", pos_label=pos_label)
 
     else:
@@ -207,7 +214,7 @@ def main(
         prfbeta_kwargs = dict(average="macro")
 
     compute_metrics = partial(
-        compute_aprfbeta, 
+        compute_aprfbeta,
         prfbeta_kwargs=prfbeta_kwargs,
     )
 
@@ -220,7 +227,7 @@ def main(
         compute_metrics=compute_metrics,
         callbacks=[early_stopping],
     )
-    
+
     if no_class_weight:
         trainer.register_loss_fn(binary_class, weight=None)
     else:
@@ -236,11 +243,11 @@ def main(
         activations = trainer.predict(
             dataset["test"].remove_columns(label_col)
         ).predictions
-        
+
         pred_labels = to_labels(activations)
         np.savetxt(
-            output_dir/"predictions.csv", 
-            pred_labels, 
+            output_dir / "predictions.csv",
+            pred_labels,
             fmt="%d",
             header="predictions",
             comments="",
@@ -258,11 +265,16 @@ def main(
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    wandb.login() # prompts for logging in if not done already
+    wandb.login()  # prompts for logging in if not done already
     wandb.init(
         project="ContextGNNBERT",
-        name=f"{args.dataset_name}-{args.encoder_model}",
-        tags=["ContextGNNBERT", args.dataset_name, args.encoder_model],
+        name=f"{args.dataset_name}-{args.classifier_net}-{args.encoder_model}",
+        tags=[
+            "ContextGNNBERT",
+            args.dataset_name,
+            args.classifier_net,
+            args.encoder_model,
+        ],
         group="ContextGNNBERT",
         entity="pensieves",
         config=args,

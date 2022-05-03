@@ -3,14 +3,15 @@ from transformers import Trainer
 
 
 class HFTrainer(Trainer):
-
     def register_loss_fn(self, binary_class=True, weight=None):
         if weight is not None:
             if isinstance(weight, (int, float)):
                 weight = [weight]
-            
+
             weight = torch.tensor(
-                weight, dtype=torch.float, device=self.model.encoder.device,
+                weight,
+                dtype=torch.float,
+                device=self.model.encoder.device,
             )
 
         if binary_class:
@@ -29,7 +30,7 @@ class HFTrainer(Trainer):
         labels = inputs["labels"]
         if logits.shape[1] == 1:
             # BCEWithLogitsLoss wierdly needs labels as floats
-            labels = labels * 1.
+            labels = labels * 1.0
             logits = logits.view(-1)
 
         loss = self.loss_fn(logits, labels)

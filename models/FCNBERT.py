@@ -7,8 +7,8 @@ class FCNBERT(EncoderBERT):
     r"""Fully-connected Network on top of BERT Encoder"""
 
     def __init__(
-        self, 
-        encoder, 
+        self,
+        encoder,
         num_labels=2,
         trainable_encoder=False,
         num_layers=2,
@@ -17,7 +17,7 @@ class FCNBERT(EncoderBERT):
         lin_kwargs={},
         non_linearity="ReLU",
     ):
-        
+
         super(FCNBERT, self).__init__(encoder, num_labels, trainable_encoder)
 
         self.fcn = self.create_fcn(
@@ -29,21 +29,19 @@ class FCNBERT(EncoderBERT):
             non_linearity=non_linearity,
         )
 
-    
     def forward(self, input_ids, attention_mask, token_type_ids, labels=None):
         r"""placeholder labels argument is provided for the compatibility with
         the huggingface dataset and Trainer api's compute_metrics."""
-        
+
         seq_out, pooled_out = self.encoder(
-            input_ids, 
-            attention_mask=attention_mask, 
+            input_ids,
+            attention_mask=attention_mask,
             token_type_ids=token_type_ids,
             return_dict=False,
         )
 
         output = self.fcn(pooled_out)
         return SequenceClassifierOutput(logits=output)
-
 
     def create_fcn(
         self,
@@ -64,7 +62,7 @@ class FCNBERT(EncoderBERT):
         fcn = []
 
         for i, in_ch, out_ch in zip(
-            range(1, num_layers+1), in_channels, out_channels
+            range(1, num_layers + 1), in_channels, out_channels
         ):
 
             fcn.append(

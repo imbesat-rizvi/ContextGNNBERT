@@ -5,28 +5,28 @@ parser = ArgumentParser(description="Arguments for ContextGNNBERT")
 parser.add_argument(
     "--dataset_name",
     default="super_glue:boolq",
-    help="huggingface compatible dataset name to be loaded with its config "\
-        "name delimited using ':' in case config name is required",
+    help="huggingface compatible dataset name to be loaded with its config "
+    "name delimited using ':' in case config name is required",
 )
 
 parser.add_argument(
     "--label_col",
-    help="Label column name to be converted from string type to ClassLabel"\
-        "in case of a classification setting",
+    help="Label column name to be converted from string type to ClassLabel"
+    "in case of a classification setting",
 )
 
 parser.add_argument(
     "--pos_label",
-    help="Label name/number denoting positive class for reporting purposes in case"\
-        " of binary classification",
+    help="Label name/number denoting positive class for reporting purposes in case"
+    " of binary classification",
 )
 
 parser.add_argument(
     "--cols_for_context",
     nargs="+",
     default=["passage", "question"],
-    help="columns names in the dataset for context generation. Two column"\
-        " names in case of sequence pair classification, else one",
+    help="columns names in the dataset for context generation. Two column"
+    " names in case of sequence pair classification, else one",
 )
 
 parser.add_argument(
@@ -44,14 +44,14 @@ parser.add_argument(
 parser.add_argument(
     "--context_mask_fn_kwargs",
     type=json.loads,
-    default={"percentile_cutoff": (75,50)},
+    default={"percentile_cutoff": (75, 50)},
     help="Keyword args to be passed on to the context mask function",
 )
 
 parser.add_argument(
     "--truncation_strategy",
     default="only_first",
-    # longest_first is equivalent to True, 
+    # longest_first is equivalent to True,
     # do_not_truncate is equivalent to False
     choices=["only_first", "only_second", "longest_first", "do_not_truncate"],
     help="truncation strategy for the huggingface tokenizer",
@@ -95,13 +95,13 @@ parser.add_argument(
     nargs="+",
     type=int,
     default=[256, 64],
-    help="Number of hidden channels per GNN block. Last layer should "\
-        "have hidden channels equal to the number of labels in "\
-        " the classification or the list of hidden channels should be "\
-        "one less than the num_gnn_blocks in which case last layer's "\
-        "hidden channel is automatically selected. Pass a single integer"\
-        " if all GNN blocks, except the last one, should have same number"\
-        " of hidden channels.",
+    help="Number of hidden channels per GNN block. Last layer should "
+    "have hidden channels equal to the number of labels in "
+    " the classification or the list of hidden channels should be "
+    "one less than the num_gnn_blocks in which case last layer's "
+    "hidden channel is automatically selected. Pass a single integer"
+    " if all GNN blocks, except the last one, should have same number"
+    " of hidden channels.",
 )
 
 parser.add_argument(
@@ -155,12 +155,12 @@ parser.add_argument(
     "--early_stopping_threshold",
     type=float,
     default=1e-4,
-    help="The threshold to match the early stopping metric/loss"
+    help="The threshold to match the early stopping metric/loss",
 )
 
 parser.add_argument(
     "--no_class_weight",
     action="store_true",
-    help="If specified, the loss function is not evaluated with "\
-        "balancing class weights",
+    help="If specified, the loss function is not evaluated with "
+    "balancing class weights",
 )

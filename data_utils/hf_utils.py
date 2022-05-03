@@ -14,15 +14,16 @@ def keep_cols(dataset, cols=[]):
         return d
 
     if isinstance(dataset, DatasetDict):
-        dataset = {k: keep_fields(v) for k,v in dataset.items()}
+        dataset = {k: keep_fields(v) for k, v in dataset.items()}
     else:
         dataset = keep_fields(dataset)
 
     return dataset
 
+
 def hstack_cols(dataset, cols=[], stacked_col_name=""):
     if not stacked_col_name:
-            stacked_col_name = "_".join(cols)
+        stacked_col_name = "_".join(cols)
 
     def hstack(d):
         col_split_dataset = [
@@ -32,21 +33,22 @@ def hstack_cols(dataset, cols=[], stacked_col_name=""):
 
     if len(cols) > 1:
         if isinstance(dataset, DatasetDict):
-            dataset = {k: hstack(v) for k,v in dataset.items()}
+            dataset = {k: hstack(v) for k, v in dataset.items()}
         else:
             dataset = hstack(dataset)
 
     return dataset
 
+
 def vfuse_cols(
-    dataset, 
-    cols=[], 
+    dataset,
+    cols=[],
     fused_col_name="",
     # default combiner_fn for cols with string type
-    combiner_fn=lambda ex, cols: " ".join(ex[c] for c in cols),  
+    combiner_fn=lambda ex, cols: " ".join(ex[c] for c in cols),
     del_orig_cols=True,
 ):
-    
+
     if not fused_col_name:
         fused_col_name = "_".join(cols)
 
@@ -55,17 +57,21 @@ def vfuse_cols(
         return ex
 
     if cols:
-        dataset = dataset.map(vfuse)    
+        dataset = dataset.map(vfuse)
         if del_orig_cols:
             dataset = dataset.remove_columns(cols)
-    
+
     return dataset
 
+
 def get_tokenizer_encoder(
-    encoder_model="bert-base-uncased", special_tokens=[],
+    encoder_model="bert-base-uncased",
+    special_tokens=[],
 ):
 
-    tokenizer = AutoTokenizer.from_pretrained(encoder_model, Padding=True, Truncation=True)
+    tokenizer = AutoTokenizer.from_pretrained(
+        encoder_model, Padding=True, Truncation=True
+    )
     encoder = AutoModel.from_pretrained(encoder_model)
 
     if special_tokens:
@@ -75,7 +81,9 @@ def get_tokenizer_encoder(
 
     return tokenizer, encoder
 
+
 def tokenize_dataset(dataset, tokenizer, tokenizing_fields=[], **tokenizer_kwargs):
     def tokenize_fn(ex):
         return tokenizer(*[ex[i] for i in tokenizing_fields], **tokenizer_kwargs)
+
     return dataset.map(tokenize_fn, batched=True)

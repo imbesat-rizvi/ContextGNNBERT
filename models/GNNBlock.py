@@ -3,13 +3,12 @@ import torch_geometric.nn as pygnn
 
 
 class GNNBlock(torch.nn.Module):
-
     def __init__(
-        self, 
-        gnn_class="GATv2Conv", 
-        in_channels=768, # BERT encoder output size
+        self,
+        gnn_class="GATv2Conv",
+        in_channels=768,  # BERT encoder output size
         lin_in_channels=768,
-        out_channels=64, 
+        out_channels=64,
         add_self_loops=True,
         gnn_kwargs=dict(heads=1),
         lin_kwargs={},
@@ -21,11 +20,16 @@ class GNNBlock(torch.nn.Module):
 
         super(GNNBlock, self).__init__()
         self.gnn = pygnn.__dict__[gnn_class](
-            in_channels, out_channels, add_self_loops=add_self_loops, **gnn_kwargs,
+            in_channels,
+            out_channels,
+            add_self_loops=add_self_loops,
+            **gnn_kwargs,
         )
 
         self.linear = pygnn.Linear(
-            in_channels=lin_in_channels, out_channels=out_channels, **lin_kwargs,
+            in_channels=lin_in_channels,
+            out_channels=out_channels,
+            **lin_kwargs,
         )
 
         self.non_linearity = None

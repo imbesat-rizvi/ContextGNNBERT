@@ -2,16 +2,16 @@ from abc import ABCMeta, abstractmethod
 import torch
 
 
-class EncoderBERT(torch.nn.Module, metaclass = ABCMeta):
+class EncoderBERT(torch.nn.Module, metaclass=ABCMeta):
     r"""Fully-connected Network on top of BERT"""
 
     def __init__(
-        self, 
-        encoder, 
+        self,
+        encoder,
         num_labels=2,
         trainable_encoder=False,
     ):
-        
+
         super(EncoderBERT, self).__init__()
 
         self.num_labels = num_labels
@@ -20,13 +20,11 @@ class EncoderBERT(torch.nn.Module, metaclass = ABCMeta):
             for param in self.encoder.parameters():
                 param.requires_grad = False
 
-    
     @abstractmethod
     def forward(self, input_ids, attention_mask, token_type_ids, labels=None):
         r"""placeholder labels argument is provided for the compatibility with
         the huggingface dataset and Trainer api's compute_metrics."""
         pass
-
 
     def get_in_out_channels(
         self,
@@ -40,16 +38,18 @@ class EncoderBERT(torch.nn.Module, metaclass = ABCMeta):
 
         # last output channel size should always be num_labels
         if isinstance(hidden_channels, int):
-            out_channels = [hidden_channels]*(num_layers-1) + [num_labels]
+            out_channels = [hidden_channels] * (num_layers - 1) + [num_labels]
         else:
             out_channels = hidden_channels
             if len(out_channels) == num_layers:
                 assert out_channels[-1] == num_labels
-            elif len(out_channels) == (num_layers-1):
+            elif len(out_channels) == (num_layers - 1):
                 out_channels += [num_labels]
             else:
-                raise ValueError("hidden_channels should either be an int or a "
-                    "sequence with length in (num_layers, num_layers-1)")
+                raise ValueError(
+                    "hidden_channels should either be an int or a "
+                    "sequence with length in (num_layers, num_layers-1)"
+                )
 
         # first gnn block with encoder output as input size
         in_channels = [self.encoder.config.hidden_size] + out_channels[:-1]
