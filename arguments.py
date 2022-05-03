@@ -36,6 +36,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--context_masker_init_kwargs",
+    default={},
+    help="Initiiazation kwargs for context masker",
+)
+
+parser.add_argument(
     "--context_mask_fn_kwargs",
     type=json.loads,
     default={"percentile_cutoff": (75,50)},
@@ -58,10 +64,10 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--gnn_class",
-    choices=["GATv2Conv", "GATConv", "GCNConv"],
+    "--classifier_net",
+    choices=["GATv2Conv", "GATConv", "GCNConv", "FCN"],
     default="GATv2Conv",
-    help="GNN class to be used to initialize the ContextGNNBERT",
+    help="Classifier network to be used on top of BERT Encoder",
 )
 
 parser.add_argument(
@@ -72,14 +78,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--gnn_block_dropout",
+    "--dropout",
     type=float,
-    default=0.2,
     help="dropout for the output from the GNN Block",
 )
 
 parser.add_argument(
-    "--num_gnn_blocks",
+    "--num_layers",
     type=int,
     default=3,
     help="Number of GNN blocks (depth) to be used on top of encoder",
@@ -100,6 +105,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--non_linearity",
+    default="ReLU",
+    help="Non-linearity class to be applied",
+)
+
+parser.add_argument(
     "--num_train_epochs",
     type=int,
     default=50,
@@ -107,31 +118,23 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--eval_steps",
-    type=int,
-    default=100,
-    help="No. of steps at which evaluation is carried out",
-)
-
-parser.add_argument(
     "--batch_size",
     type=int,
-    default=512,
+    default=128,
     help="train, eval and test batch size",
 )
 
 parser.add_argument(
-    "--lr",
-    type=float,
-    default=1e-3,
-    help="learning rate of the AdamW optimizer",
+    "--optimizer_name",
+    default="AdamW",
+    help="Name of the optimizer class to be used",
 )
 
 parser.add_argument(
-    "--adam_eps",
-    type=float,
-    default=1e-8,
-    help="Adam epsilon value for the AdamW optimizer",
+    "--optimizer_kwargs",
+    type=json.loads,
+    default={"lr": 1e-5, "eps": 1e-8},
+    help="kwargs to initialize optimizer",
 )
 
 parser.add_argument(
@@ -151,7 +154,7 @@ parser.add_argument(
 parser.add_argument(
     "--early_stopping_threshold",
     type=float,
-    default=1e-3,
+    default=1e-4,
     help="The threshold to match the early stopping metric/loss"
 )
 

@@ -13,7 +13,7 @@ class GNNBlock(torch.nn.Module):
         add_self_loops=True,
         gnn_kwargs=dict(heads=1),
         lin_kwargs={},
-        non_linearity=torch.nn.ReLU(), # without an inplace=True arg
+        non_linearity="ReLU",
         dropout=0.2,
     ):
 
@@ -28,7 +28,9 @@ class GNNBlock(torch.nn.Module):
             in_channels=lin_in_channels, out_channels=out_channels, **lin_kwargs,
         )
 
-        self.non_linearity = non_linearity
+        self.non_linearity = None
+        if non_linearity is not None:
+            self.non_linearity = torch.nn.__dict__[non_linearity]()
 
         self.dropout = None
         if dropout is not None:

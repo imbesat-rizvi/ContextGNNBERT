@@ -5,7 +5,7 @@ from transformers import Trainer
 class HFTrainer(Trainer):
 
     def register_loss_fn(self, binary_class=True, weight=None):
-        if weight:
+        if weight is not None:
             if isinstance(weight, (int, float)):
                 weight = [weight]
             

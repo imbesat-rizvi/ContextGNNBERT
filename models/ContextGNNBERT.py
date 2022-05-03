@@ -2,37 +2,31 @@ import torch
 import torch_geometric as pyg
 from transformers.modeling_outputs import SequenceClassifierOutput
 
+from .EncoderBERT import EncoderBERT
 from .GNNBlock import GNNBlock
 
 
-class ContextGNNBERT(torch.nn.Module):
+class ContextGNNBERT(EncoderBERT):
 
     def __init__(
         self, 
         encoder, 
         num_labels=2,
         trainable_encoder=False,
-        num_gnn_blocks=2,
+        num_layers=2,
         gnn_class="GATv2Conv", 
         hidden_channels=64,
         gnn_kwargs=dict(heads=1),
         gnn_block_dropout=0.2,
         gnn_lin_kwargs={},
-        non_linearity=torch.nn.ReLU(), # without an inplace=True arg
+        non_linearity="ReLU",
     ):
         
-        super(ContextGNNBERT, self).__init__()
-
-        self.num_labels = num_labels
-        self.encoder = encoder
-        if not trainable_encoder:
-            for param in self.encoder.parameters():
-                param.requires_grad = False
+        super(ContextGNNBERT, self).__init__(encoder, num_labels, trainable_encoder)
 
         self.gnn = self.create_gnn(
-            in_feat_size=encoder.config.hidden_size,
             num_labels=num_labels,
-            num_gnn_blocks=num_gnn_blocks,
+            num_layers=num_layers,
             gnn_class=gnn_class, 
             hidden_channels=hidden_channels,
             gnn_kwargs=gnn_kwargs,
@@ -71,40 +65,26 @@ class ContextGNNBERT(torch.nn.Module):
 
     def create_gnn(
         self,
-        in_feat_size=768,
         num_labels=2,
-        num_gnn_blocks=2,
+        num_layers=2,
         gnn_class="GATv2Conv", 
         hidden_channels=64,
         gnn_kwargs=dict(heads=1),
         gnn_block_dropout=0.2,
         lin_kwargs={},
-        non_linearity=torch.nn.ReLU(), # without an inplace=True arg
+        non_linearity="ReLU",
     ):
 
-        # set num_labels to 1 for binary classification output size
-        num_labels = 1 if num_labels == 2 else num_labels
+        in_channels, out_channels = self.get_in_out_channels(
+            num_labels=num_labels,
+            num_layers=num_layers,
+            hidden_channels=hidden_channels,
+        )
 
         gnn = torch.nn.ModuleList()
 
-        # last output channel size should always be num_labels
-        if isinstance(hidden_channels, int):
-            out_channels = [hidden_channels]*(num_gnn_blocks-1) + [num_labels]
-        else:
-            out_channels = hidden_channels
-            if len(out_channels) == num_gnn_blocks:
-                assert out_channels[-1] == num_labels
-            elif len(out_channels) == (num_gnn_blocks-1):
-                out_channels += [num_labels]
-            else:
-                raise ValueError("hidden_channels should either be an int or a "
-                    "sequence with length in (num_gnn_blocks, num_gnn_blocks-1)")
-
-        # first gnn block with encoder output as input size
-        in_channels = [in_feat_size] + out_channels[:-1]
-
         for i, in_ch, out_ch in zip(
-            range(1, num_gnn_blocks+1), in_channels, out_channels
+            range(1, num_layers+1), in_channels, out_channels
         ):
 
             gnn_block = GNNBlock(
@@ -115,8 +95,8 @@ class ContextGNNBERT(torch.nn.Module):
                 add_self_loops=False, # add self loop in the data itself
                 gnn_kwargs=gnn_kwargs,
                 lin_kwargs=lin_kwargs,
-                non_linearity=non_linearity if i < num_gnn_blocks else None,
-                dropout=gnn_block_dropout if i < num_gnn_blocks else None,
+                non_linearity=non_linearity if i < num_layers else None,
+                dropout=gnn_block_dropout if i < num_layers else None,
             )
 
             gnn.append(gnn_block)

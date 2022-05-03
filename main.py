@@ -4,6 +4,7 @@ from pathlib import Path
 from sklearn.utils.class_weight import compute_class_weight
 
 from datasets import load_dataset, ClassLabel
+# from datasets import DatasetDict
 
 from data_utils.hf_utils import (
     hstack_cols, 
@@ -12,11 +13,11 @@ from data_utils.hf_utils import (
 )
 
 import ContextMasker
-from models import ContextGNNBERT
+from models import FCNBERT, ContextGNNBERT
 from models.utils import HFTrainer, compute_aprfbeta, to_labels
 
 import torch
-from torch.optim import AdamW
+from torch import optim
 from transformers import (
     get_linear_schedule_with_warmup,
     EarlyStoppingCallback,
@@ -34,26 +35,28 @@ def main(
     pos_label=1,
     cols_for_context=["passage", "question"],
     context_masker="TFIDFContextMasker",
+    context_masker_init_kwargs={},
     context_mask_fn_kwargs={"percentile_cutoff": (75, 50)},
     truncation_strategy="only_first",
     encoder_model="bert-base-uncased",
-    gnn_class="GATv2Conv",
+    classifier_net="GATv2Conv",
     gnn_kwargs=dict(heads=1),
-    gnn_block_dropout=0.2,
-    num_gnn_blocks=3,
+    dropout=0.2,
+    num_layers=3,
     hidden_channels=[256,64],
+    non_linearity="ReLU",
     num_train_epochs=50,
-    eval_steps=100,
-    batch_size=32,
-    lr=1e-3,
-    adam_eps=1e-8,
+    batch_size=128,
+    optimizer_name="AdamW",
+    optimizer_kwargs={"lr": 1e-5, "eps": 1e-8},
     num_warmup_steps=0,
     early_stopping_patience=7,
-    early_stopping_threshold=1e-3,
+    early_stopping_threshold=1e-4,
     no_class_weight=False,
 ):
 
     dataset = load_dataset(dataset_name, name=config_name)
+    # dataset = DatasetDict({k:v.select(range(10)) for k,v in dataset.items()})
     num_labels = None
 
     if label_col is None:
@@ -97,34 +100,51 @@ def main(
         max_length=max_tokenized_length,
     )
 
-    context_corpus = dataset["train"]
-    if not isinstance(cols_for_context, str):
-        context_corpus = hstack_cols(
-            context_corpus, cols=cols_for_context, stacked_col_name=context_corpus_col
+    if classifier_net != "FCN":
+
+        context_corpus = dataset["train"]
+        if not isinstance(cols_for_context, str):
+            context_corpus = hstack_cols(
+                context_corpus, cols=cols_for_context, stacked_col_name=context_corpus_col
+            )
+
+        context_masker = ContextMasker.__dict__[context_masker](
+            context_corpus[context_corpus_col], 
+            tokenizer=tokenizer, 
+            **context_masker_init_kwargs,
         )
 
-    context_masker = ContextMasker.__dict__[context_masker](
-        context_corpus[context_corpus_col], tokenizer=tokenizer
-    )
+        dataset = context_masker.insert_context_mask(
+            dataset, cols=cols_for_context, **context_mask_fn_kwargs
+        )
 
-    dataset = context_masker.insert_context_mask(
-        dataset, cols=cols_for_context, **context_mask_fn_kwargs
-    )
+        model = ContextGNNBERT(
+            encoder=encoder,
+            num_labels=num_labels,
+            gnn_class=classifier_net,
+            gnn_kwargs=gnn_kwargs,
+            gnn_block_dropout=dropout,
+            num_layers=num_layers,
+            hidden_channels=hidden_channels,
+            non_linearity=non_linearity,
+        )
+
+    else:
+        model = FCNBERT(
+            encoder=encoder, 
+            num_labels=num_labels,
+            num_layers=num_layers,
+            hidden_channels=hidden_channels,
+            dropout=dropout,
+            non_linearity=non_linearity,
+        )
+
+    print(model)
 
     dataset = dataset.remove_columns(cols_to_exl_in_model_inp)
     dataset.set_format("torch")
 
-    model = ContextGNNBERT(
-        encoder=encoder,
-        num_labels=num_labels,
-        gnn_class=gnn_class,
-        gnn_kwargs=gnn_kwargs,
-        gnn_block_dropout=gnn_block_dropout,
-        num_gnn_blocks=num_gnn_blocks,
-        hidden_channels=hidden_channels,
-    )
-
-    run_name = f"{dataset_name}-{config_name}-{encoder_model}"
+    run_name = f"{dataset_name}-{config_name}-{classifier_net}-{encoder_model}"
     trainer_dir = Path("trainer_outputs")
     trainer_dir.mkdir(parents=True, exist_ok=True)
     output_dir = trainer_dir/run_name
@@ -135,26 +155,20 @@ def main(
         num_train_epochs=num_train_epochs,
         no_cuda=(not torch.cuda.is_available()),
         output_dir=output_dir,
-        evaluation_strategy="steps",
-        eval_steps=eval_steps,  # defaults to logging_steps if not provided
+        evaluation_strategy="epoch",
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
         metric_for_best_model="eval_loss",
         greater_is_better=False,  # as smaller loss is better
         remove_unused_columns=False,
-        logging_strategy="steps",
-        logging_steps=eval_steps,
+        logging_strategy="epoch",
         load_best_model_at_end=True,
-        # save_strategy must be same as evaluation_strategy
-        # and save_steps must be a round_multiple of eval_steps
-        # if load_best_model_at_end is True
-        save_strategy="steps",
-        save_steps=eval_steps,
+        save_strategy="epoch",
         save_total_limit=10,  # deletes older checkpoints on reaching this limit
     )
 
     num_train_steps = int(np.ceil(len(dataset["train"]) * num_train_epochs / batch_size))
-    optimizer = AdamW(model.parameters(), lr=lr, eps=adam_eps)
+    optimizer = optim.__dict__[optimizer_name](model.parameters(), **optimizer_kwargs)
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps
     )
@@ -270,19 +284,20 @@ if __name__ == "__main__":
         pos_label=args.pos_label,
         cols_for_context=args.cols_for_context,
         context_masker=args.context_masker,
+        context_masker_init_kwargs=args.context_masker_init_kwargs,
         context_mask_fn_kwargs=args.context_mask_fn_kwargs,
         truncation_strategy=args.truncation_strategy,
         encoder_model=args.encoder_model,
-        gnn_class=args.gnn_class,
+        classifier_net=args.classifier_net,
         gnn_kwargs=args.gnn_kwargs,
-        gnn_block_dropout=args.gnn_block_dropout,
-        num_gnn_blocks=args.num_gnn_blocks,
+        dropout=args.dropout,
+        num_layers=args.num_layers,
         hidden_channels=args.hidden_channels,
+        non_linearity=args.non_linearity,
         num_train_epochs=args.num_train_epochs,
-        eval_steps=args.eval_steps,
         batch_size=args.batch_size,
-        lr=args.lr,
-        adam_eps=args.adam_eps,
+        optimizer_name=args.optimizer_name,
+        optimizer_kwargs=args.optimizer_kwargs,
         num_warmup_steps=args.num_warmup_steps,
         early_stopping_patience=args.early_stopping_patience,
         early_stopping_threshold=args.early_stopping_threshold,
