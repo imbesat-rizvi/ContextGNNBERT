@@ -71,8 +71,8 @@ parser.add_argument(
 
 parser.add_argument(
     "--classifier_net",
-    choices=["GATv2Conv", "GATConv", "GCNConv", "FCN"],
-    default="GATv2Conv",
+    choices=["ContextAveraged", "GATv2Conv", "GATConv", "GCNConv", "FCN"],
+    default="ContextAveraged",
     help="Classifier network to be used on top of BERT Encoder",
 )
 

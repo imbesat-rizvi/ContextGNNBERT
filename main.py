@@ -14,7 +14,7 @@ from data_utils.hf_utils import (
 )
 
 import ContextMasker
-from models import FCNBERT, ContextGNNBERT
+from models import FCNBERT, ContextGNNBERT, ContextAveragedBERT
 from models.utils import HFTrainer, compute_aprfbeta, to_labels
 
 import torch
@@ -58,7 +58,7 @@ def main(
 ):
 
     dataset = load_dataset(dataset_name, name=config_name)
-    # dataset = DatasetDict({k:v.select(range(10)) for k,v in dataset.items()})
+    # dataset = DatasetDict({k: v.select(range(10)) for k, v in dataset.items()})
     num_labels = None
 
     if label_col is None:
@@ -102,8 +102,18 @@ def main(
         max_length=max_tokenized_length,
     )
 
-    if classifier_net != "FCN":
+    if classifier_net == "FCN":
+        model = FCNBERT(
+            encoder,
+            num_labels=num_labels,
+            trainable_encoder=trainable_encoder,
+            num_layers=num_layers,
+            hidden_channels=hidden_channels,
+            dropout=dropout,
+            non_linearity=non_linearity,
+        )
 
+    else:
         context_corpus = dataset["train"]
         if not isinstance(cols_for_context, str):
             context_corpus = hstack_cols(
@@ -122,35 +132,38 @@ def main(
             dataset, cols=cols_for_context, **context_mask_fn_kwargs
         )
 
-        model = ContextGNNBERT(
-            encoder=encoder,
-            trainable_encoder=trainable_encoder,
-            num_labels=num_labels,
-            gnn_class=classifier_net,
-            gnn_kwargs=gnn_kwargs,
-            gnn_block_dropout=dropout,
-            num_layers=num_layers,
-            hidden_channels=hidden_channels,
-            non_linearity=non_linearity,
-        )
+        if classifier_net == "ContextAveraged":
+            model = ContextAveragedBERT(
+                encoder,
+                num_labels=num_labels,
+                trainable_encoder=trainable_encoder,
+                num_context_types=(1 if isinstance(cols_for_context, str) else 2),
+                num_layers=num_layers,
+                hidden_channels=hidden_channels,
+                dropout=dropout,
+                non_linearity=non_linearity,
+            )
 
-    else:
-        model = FCNBERT(
-            encoder=encoder,
-            trainable_encoder=trainable_encoder,
-            num_labels=num_labels,
-            num_layers=num_layers,
-            hidden_channels=hidden_channels,
-            dropout=dropout,
-            non_linearity=non_linearity,
-        )
+        else:
+            model = ContextGNNBERT(
+                encoder,
+                num_labels=num_labels,
+                trainable_encoder=trainable_encoder,
+                gnn_class=classifier_net,
+                gnn_kwargs=gnn_kwargs,
+                gnn_block_dropout=dropout,
+                num_layers=num_layers,
+                hidden_channels=hidden_channels,
+                non_linearity=non_linearity,
+            )
 
     print(model)
 
     dataset = dataset.remove_columns(cols_to_exl_in_model_inp)
     dataset.set_format("torch")
 
-    run_name = f"{dataset_name}-{config_name}-{classifier_net}-{encoder_model}"
+    encoder_training = "tuned_encoder" if trainable_encoder else "non_tuned_encoder"
+    run_name = f"{dataset_name}-{config_name}-{classifier_net}-{encoder_model}-{encoder_training}"
     trainer_dir = Path("trainer_outputs")
     trainer_dir.mkdir(parents=True, exist_ok=True)
     output_dir = trainer_dir / run_name
@@ -268,15 +281,20 @@ def main(
 if __name__ == "__main__":
     args = parser.parse_args()
 
+    encoder_training = (
+        "tuned_encoder" if args.trainable_encoder else "non_tuned_encoder"
+    )
+
     wandb.login()  # prompts for logging in if not done already
     wandb.init(
         project="ContextGNNBERT",
-        name=f"{args.dataset_name}-{args.classifier_net}-{args.encoder_model}",
+        name=f"{args.dataset_name}-{args.classifier_net}-{args.encoder_model}-{encoder_training}",
         tags=[
             "ContextGNNBERT",
             args.dataset_name,
             args.classifier_net,
             args.encoder_model,
+            encoder_training,
         ],
         group="ContextGNNBERT",
         entity="pensieves",

@@ -85,7 +85,7 @@ class ContextGNNBERT(EncoderBERT):
         ):
 
             gnn_block = GNNBlock(
-                gnn_class,
+                gnn_class=gnn_class,
                 in_channels=in_ch,
                 lin_in_channels=in_ch,
                 out_channels=out_ch,
