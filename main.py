@@ -3,11 +3,12 @@ from functools import partial
 from pathlib import Path
 from sklearn.utils.class_weight import compute_class_weight
 
-from datasets import load_dataset, ClassLabel
+from datasets import load_dataset, ClassLabel, concatenate_datasets
 
 # from datasets import DatasetDict
 
 from data_utils.hf_utils import (
+    keep_cols,
     hstack_cols,
     get_tokenizer_encoder,
     tokenize_dataset,
@@ -35,22 +36,25 @@ def main(
     label_col=None,
     pos_label=1,
     cols_for_context=["passage", "question"],
+    context_corpus_splits=["train", "validation", "test"],
     context_masker="TFIDFContextMasker",
     context_masker_init_kwargs={},
     context_mask_fn_kwargs={"percentile_cutoff": (75, 50)},
     truncation_strategy="only_first",
     encoder_model="bert-base-uncased",
     trainable_encoder=False,
-    classifier_net="GATv2Conv",
+    classifier_net="ContextAveraged",
     gnn_kwargs=dict(heads=1),
     dropout=0.2,
     num_layers=3,
     hidden_channels=[256, 64],
     non_linearity="ReLU",
+    load_checkpoint="",
     num_train_epochs=50,
     batch_size=128,
     optimizer_name="AdamW",
-    optimizer_kwargs={"lr": 1e-5, "eps": 1e-8},
+    optimizer_kwargs={"lr": 1e-3, "eps": 1e-8},
+    encoder_optimizer_kwargs={},
     num_warmup_steps=0,
     early_stopping_patience=7,
     early_stopping_threshold=1e-4,
@@ -103,8 +107,10 @@ def main(
     )
 
     if classifier_net == "FCN":
-        model = FCNBERT(
-            encoder,
+        model = FCNBERT.from_pretrained(
+            saved_path=load_checkpoint,
+            load_strategy="best",
+            encoder=encoder,
             num_labels=num_labels,
             trainable_encoder=trainable_encoder,
             num_layers=num_layers,
@@ -114,13 +120,21 @@ def main(
         )
 
     else:
-        context_corpus = dataset["train"]
-        if not isinstance(cols_for_context, str):
-            context_corpus = hstack_cols(
-                context_corpus,
-                cols=cols_for_context,
-                stacked_col_name=context_corpus_col,
+
+        context_corpus = keep_cols(dataset, cols=cols_for_context)
+
+        if isinstance(context_corpus_splits, str):
+            context_corpus = context_corpus[context_corpus_splits]
+        else:
+            context_corpus = concatenate_datasets(
+                [context_corpus[i] for i in context_corpus_splits]
             )
+
+        context_corpus = hstack_cols(
+            context_corpus,
+            cols=cols_for_context,
+            stacked_col_name=context_corpus_col,
+        )
 
         context_masker = ContextMasker.__dict__[context_masker](
             context_corpus[context_corpus_col],
@@ -133,8 +147,10 @@ def main(
         )
 
         if classifier_net == "ContextAveraged":
-            model = ContextAveragedBERT(
-                encoder,
+            model = ContextAveragedBERT.from_pretrained(
+                saved_path=load_checkpoint,
+                load_strategy="best",
+                encoder=encoder,
                 num_labels=num_labels,
                 trainable_encoder=trainable_encoder,
                 num_context_types=(1 if isinstance(cols_for_context, str) else 2),
@@ -145,8 +161,10 @@ def main(
             )
 
         else:
-            model = ContextGNNBERT(
-                encoder,
+            model = ContextGNNBERT.from_pretrained(
+                saved_path=load_checkpoint,
+                load_strategy="best",
+                encoder=encoder,
                 num_labels=num_labels,
                 trainable_encoder=trainable_encoder,
                 gnn_class=classifier_net,
@@ -162,7 +180,7 @@ def main(
     dataset = dataset.remove_columns(cols_to_exl_in_model_inp)
     dataset.set_format("torch")
 
-    encoder_training = "tuned_encoder" if trainable_encoder else "non_tuned_encoder"
+    encoder_training = "tuned_encoder" if trainable_encoder else "untuned_encoder"
     run_name = f"{dataset_name}-{config_name}-{classifier_net}-{encoder_model}-{encoder_training}"
     trainer_dir = Path("trainer_outputs")
     trainer_dir.mkdir(parents=True, exist_ok=True)
@@ -189,7 +207,27 @@ def main(
     num_train_steps = int(
         np.ceil(len(dataset["train"]) * num_train_epochs / batch_size)
     )
-    optimizer = optim.__dict__[optimizer_name](model.parameters(), **optimizer_kwargs)
+
+    optimizer_class = optim.__dict__[optimizer_name]
+    if not encoder_optimizer_kwargs:
+        optimizer = optimizer_class(model.parameters(), **optimizer_kwargs)
+
+    else:
+        encoder_params = (
+            p[1] for p in model.named_parameters() if p[0].split(".", 1)[0] == "encoder"
+        )
+        other_params = (
+            p[1] for p in model.named_parameters() if p[0].split(".", 1)[0] != "encoder"
+        )
+
+        optimizer = optimizer_class(
+            [
+                {"params": encoder_params, **encoder_optimizer_kwargs},
+                {"params": other_params},
+            ],
+            **optimizer_kwargs,
+        )
+
     scheduler = get_linear_schedule_with_warmup(
         optimizer, num_warmup_steps=num_warmup_steps, num_training_steps=num_train_steps
     )
@@ -249,7 +287,8 @@ def main(
     else:
         trainer.register_loss_fn(binary_class, weight=class_weight)
 
-    trainer.train()
+    if num_train_epochs > 0:
+        trainer.train()
 
     dataset_for_metrics = ["train", "validation"]
     if not (-1 in dataset["test"][label_col]):
@@ -281,9 +320,7 @@ def main(
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    encoder_training = (
-        "tuned_encoder" if args.trainable_encoder else "non_tuned_encoder"
-    )
+    encoder_training = "tuned_encoder" if args.trainable_encoder else "untuned_encoder"
 
     wandb.login()  # prompts for logging in if not done already
     wandb.init(
@@ -309,6 +346,8 @@ if __name__ == "__main__":
         args.hidden_channels = args.hidden_channels[0]
     if len(args.cols_for_context) == 1:
         args.cols_for_context = args.cols_for_context[0]
+    if len(args.context_corpus_splits) == 1:
+        args.context_corpus_splits = args.context_corpus_splits[0]
 
     main(
         dataset_name=dataset_name,
@@ -316,6 +355,7 @@ if __name__ == "__main__":
         label_col=args.label_col,
         pos_label=args.pos_label,
         cols_for_context=args.cols_for_context,
+        context_corpus_splits=args.context_corpus_splits,
         context_masker=args.context_masker,
         context_masker_init_kwargs=args.context_masker_init_kwargs,
         context_mask_fn_kwargs=args.context_mask_fn_kwargs,
@@ -328,10 +368,12 @@ if __name__ == "__main__":
         num_layers=args.num_layers,
         hidden_channels=args.hidden_channels,
         non_linearity=args.non_linearity,
+        load_checkpoint=args.load_checkpoint,
         num_train_epochs=args.num_train_epochs,
         batch_size=args.batch_size,
         optimizer_name=args.optimizer_name,
         optimizer_kwargs=args.optimizer_kwargs,
+        encoder_optimizer_kwargs=args.encoder_optimizer_kwargs,
         num_warmup_steps=args.num_warmup_steps,
         early_stopping_patience=args.early_stopping_patience,
         early_stopping_threshold=args.early_stopping_threshold,

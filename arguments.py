@@ -30,6 +30,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--context_corpus_splits",
+    nargs="+",
+    default=["train", "validation", "test"],
+    help="dataset splits to be used as context corpus",
+)
+
+parser.add_argument(
     "--context_masker",
     default="TFIDFContextMasker",
     help="Context masker to be used for context generation",
@@ -117,10 +124,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--load_checkpoint",
+    help="Checkpoint or Directory containing checkpoint path to load from",
+)
+
+parser.add_argument(
     "--num_train_epochs",
     type=int,
     default=50,
-    help="Number of training epochs for the model",
+    help="Number of training epochs for the model. Specify 0 for no training.",
 )
 
 parser.add_argument(
@@ -139,8 +151,14 @@ parser.add_argument(
 parser.add_argument(
     "--optimizer_kwargs",
     type=json.loads,
-    default={"lr": 1e-5, "eps": 1e-8},
+    default={"lr": 1e-3, "eps": 1e-8},
     help="kwargs to initialize optimizer",
+)
+
+parser.add_argument(
+    "--encoder_optimizer_kwargs",
+    type=json.loads,
+    help="optimizer kwargs for encoder, in case it needs to be different",
 )
 
 parser.add_argument(

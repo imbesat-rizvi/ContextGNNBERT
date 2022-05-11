@@ -14,14 +14,23 @@ def keep_cols(dataset, cols=[]):
         return d
 
     if isinstance(dataset, DatasetDict):
-        dataset = {k: keep_fields(v) for k, v in dataset.items()}
+        dataset = DatasetDict({k: keep_fields(v) for k, v in dataset.items()})
+        # manually set format otherwise concatenation of datasets throws
+        # column mismatch error
+        dataset.set_format(columns=dataset[next(iter(dataset.keys()))].column_names)
+
     else:
         dataset = keep_fields(dataset)
+        dataset.set_format(columns=dataset.column_names)
 
     return dataset
 
 
 def hstack_cols(dataset, cols=[], stacked_col_name=""):
+
+    if isinstance(cols, str):
+        cols = [cols]
+
     if not stacked_col_name:
         stacked_col_name = "_".join(cols)
 
@@ -33,7 +42,7 @@ def hstack_cols(dataset, cols=[], stacked_col_name=""):
 
     if len(cols) > 1:
         if isinstance(dataset, DatasetDict):
-            dataset = {k: hstack(v) for k, v in dataset.items()}
+            dataset = DatasetDict({k: hstack(v) for k, v in dataset.items()})
         else:
             dataset = hstack(dataset)
 

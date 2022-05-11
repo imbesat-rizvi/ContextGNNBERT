@@ -1,6 +1,8 @@
 from abc import ABCMeta, abstractmethod
 import torch
 
+from .utils import update_model_state_dict
+
 
 class EncoderBERT(torch.nn.Module, metaclass=ABCMeta):
     r"""Fully-connected Network on top of BERT"""
@@ -19,6 +21,12 @@ class EncoderBERT(torch.nn.Module, metaclass=ABCMeta):
         if not trainable_encoder:
             for param in self.encoder.parameters():
                 param.requires_grad = False
+
+    @classmethod
+    def from_pretrained(cls, saved_path="", load_strategy="best", **init_kwargs):
+        model = cls(**init_kwargs)
+        model = update_model_state_dict(model, saved_path, load_strategy)
+        return model
 
     @abstractmethod
     def forward(self, input_ids, attention_mask, token_type_ids, labels=None):

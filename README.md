@@ -11,11 +11,13 @@ python3 main.py \
 	--context_masker TFIDFContextMasker \
 	--context_mask_fn_kwargs '{"percentile_cutoff": 50}' \
 	--truncation_strategy longest_first \
-	--classifier_net GATv2Conv \
+	--classifier_net ContextAveraged \
+	--trainable_encoder \
 	--num_train_epochs 50 \
-	--batch_size 128 \
+	--batch_size 12 \
 	--optimizer_name AdamW \
-	--optimizer_kwargs '{"lr": 1e-5, "eps": 1e-8}'
+	--optimizer_kwargs '{"lr": 1e-3, "eps": 1e-8}' \
+	--encoder_optimizer_kwargs '{"lr": 1e-5}'
 ```
 
 or to run the script without wandb experiment tracking, execute as:
