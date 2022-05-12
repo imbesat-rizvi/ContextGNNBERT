@@ -56,7 +56,7 @@ def main(
     optimizer_kwargs={"lr": 1e-3, "eps": 1e-8},
     encoder_optimizer_kwargs={},
     num_warmup_steps=0,
-    early_stopping_patience=7,
+    early_stopping_patience=5,
     early_stopping_threshold=1e-4,
     no_class_weight=False,
 ):

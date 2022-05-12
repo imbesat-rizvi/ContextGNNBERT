@@ -171,7 +171,7 @@ parser.add_argument(
 parser.add_argument(
     "--early_stopping_patience",
     type=int,
-    default=7,
+    default=5,
     help="Number of steps to watch for before early stopping",
 )
 
