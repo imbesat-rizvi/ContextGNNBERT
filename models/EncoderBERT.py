@@ -59,7 +59,7 @@ class EncoderBERT(torch.nn.Module, metaclass=ABCMeta):
                     "sequence with length in (num_layers, num_layers-1)"
                 )
 
-        # first gnn block with encoder output as input size
+        # first block with encoder output as input size
         in_channels = [self.encoder.config.hidden_size] + out_channels[:-1]
 
         return in_channels, out_channels

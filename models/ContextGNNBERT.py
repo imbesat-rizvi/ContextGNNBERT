@@ -116,7 +116,7 @@ class ContextGNNBERT(EncoderBERT):
         context_mask,
         undirected=True,
         self_loops=True,
-        normalize_feats=False,
+        normalize_feats=True,
     ):
         r"""The graph being created is a star graph with [CLS] pooler output as
         its center"""
