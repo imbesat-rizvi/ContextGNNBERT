@@ -6,7 +6,7 @@ from sklearn.utils.class_weight import compute_class_weight
 
 from datasets import load_dataset, ClassLabel, concatenate_datasets
 
-# from datasets import DatasetDict
+from datasets import DatasetDict
 
 from data_utils.hf_utils import (
     keep_cols,
@@ -37,6 +37,7 @@ def main(
     label_col=None,
     pos_label=1,
     input_text_cols=["passage", "question"],
+    split_map={"train": "train", "validation": "validation", "test": "test"},
     context_corpus_splits="train",
     context_masker="TFIDFContextMasker",
     context_masker_init_kwargs={},
@@ -62,9 +63,16 @@ def main(
     no_class_weight=False,
 ):
 
-    dataset = load_dataset(dataset_name, name=config_name)
-    # dataset = DatasetDict({k: v.select(range(10)) for k, v in dataset.items()})
+    orig_dataset = load_dataset(dataset_name, name=config_name)
+    # orig_dataset = DatasetDict({k: v.select(range(10)) for k, v in orig_dataset.items()})
     num_labels = None
+
+    dataset = DatasetDict()
+    for k, v in split_map.items():
+        if isinstance(v, str):
+            dataset[k] = orig_dataset[v]
+        else:
+            dataset[k] = concatenate_datasets([orig_dataset[s] for s in v])
 
     if label_col is None:
         for feat_name, feat_class in dataset["train"].features.items():
@@ -280,7 +288,7 @@ def main(
         args=train_args,
         optimizers=(optimizer, scheduler),
         train_dataset=dataset["train"],
-        eval_dataset=dataset["validation"],
+        eval_dataset=dataset.get("validation"),
         compute_metrics=compute_metrics,
         callbacks=[early_stopping],
     )
@@ -293,9 +301,13 @@ def main(
     if num_train_epochs > 0:
         trainer.train()
 
-    dataset_for_metrics = ["train", "validation"]
+    dataset_for_metrics = ["train"]
+    if dataset.get("validation"):
+        dataset_for_metrics.append("validation")
+
     if not (-1 in dataset["test"][label_col]):
         dataset_for_metrics.append("test")
+
     else:
         # nothing to compare, write predictions to a file
         activations = trainer.predict(
@@ -360,6 +372,7 @@ if __name__ == "__main__":
         label_col=args.label_col,
         pos_label=args.pos_label,
         input_text_cols=args.input_text_cols,
+        split_map=args.split_map,
         context_corpus_splits=args.context_corpus_splits,
         context_masker=args.context_masker,
         context_masker_init_kwargs=args.context_masker_init_kwargs,

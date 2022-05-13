@@ -30,6 +30,15 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--split_map",
+    type=json.loads,
+    default={"train": "train", "validation": "validation", "test": "test"},
+    help="Split maps for the dataset splits. Split merging can be specified as "
+    'lists e.g. {"train": ["train", "validation"], "test": "test"} will merge '
+    "train and validation into a single train split.",
+)
+
+parser.add_argument(
     "--context_corpus_splits",
     nargs="+",
     default=["train"],
