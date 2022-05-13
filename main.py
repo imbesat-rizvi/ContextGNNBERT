@@ -80,8 +80,10 @@ def main(
     print(f"Num labels = {num_labels}")
 
     # rename the HF dataset label col to labels as HF pipelines expect this name
-    dataset = dataset.rename_column(label_col, "labels")
-    label_col = "labels"
+    if label_col != "labels":
+        dataset = dataset.rename_column(label_col, "labels")
+        label_col = "labels"
+
     cols_to_exl_in_model_inp = [
         i for i, j in dataset["train"].features.items() if not isinstance(j, ClassLabel)
     ]
