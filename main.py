@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from functools import partial
 from pathlib import Path
 from sklearn.utils.class_weight import compute_class_weight
@@ -302,13 +303,13 @@ def main(
         ).predictions
 
         pred_labels = to_labels(activations)
-        np.savetxt(
-            output_dir / "predictions.csv",
-            pred_labels,
-            fmt="%d",
-            header="predictions",
-            comments="",
+        pred_df = pd.DataFrame({"idx": range(len(pred_labels)), "label": pred_labels})
+
+        out_file = output_dir / "predictions.csv"
+        print(
+            f"Test dataset doesn't have true labels. Writing predictions to {out_file}"
         )
+        pred_df.to_csv(out_file, index=False)
 
     pred_metrics = {
         i: trainer.predict(dataset[i], metric_key_prefix=i).metrics
