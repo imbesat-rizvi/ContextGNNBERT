@@ -92,6 +92,10 @@ def get_tokenizer_encoder(
 
 
 def tokenize_dataset(dataset, tokenizer, tokenizing_fields=[], **tokenizer_kwargs):
+
+    if isinstance(tokenizing_fields, str):
+        tokenizing_fields = [tokenizing_fields]
+
     def tokenize_fn(ex):
         return tokenizer(*[ex[i] for i in tokenizing_fields], **tokenizer_kwargs)
 
