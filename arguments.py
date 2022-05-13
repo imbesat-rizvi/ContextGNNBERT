@@ -22,17 +22,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--cols_for_context",
+    "--input_text_cols",
     nargs="+",
     default=["passage", "question"],
-    help="columns names in the dataset for context generation. Two column"
+    help="columns names in the dataset for input to the model. Two column"
     " names in case of sequence pair classification, else one",
 )
 
 parser.add_argument(
     "--context_corpus_splits",
     nargs="+",
-    default=["train", "validation", "test"],
+    default=["train"],
     help="dataset splits to be used as context corpus",
 )
 
@@ -71,22 +71,23 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--trainable_encoder",
+    "--non_trainable_encoder",
     action="store_true",
     help="Specify this flag to make encoder trainable",
 )
 
 parser.add_argument(
     "--classifier_net",
-    choices=["ContextAveraged", "GATv2Conv", "GATConv", "GCNConv", "FCN"],
-    default="ContextAveraged",
-    help="Classifier network to be used on top of BERT Encoder",
+    choices=["GATConv", "GATv2Conv", "GCNConv", "ContextAveraged", "FCN"],
+    default="GATConv",
+    help="Classifier network to be used on top of BERT Encoder."
+    " Note that GCNConv only works on homogenous graphs.",
 )
 
 parser.add_argument(
     "--gnn_kwargs",
     type=json.loads,
-    default={"heads": 1},
+    default={},
     help="keyword arguments for the GNN class of the ContextGNNBERT",
 )
 

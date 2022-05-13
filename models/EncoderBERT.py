@@ -11,7 +11,7 @@ class EncoderBERT(torch.nn.Module, metaclass=ABCMeta):
         self,
         encoder,
         num_labels=2,
-        trainable_encoder=False,
+        trainable_encoder=True,
     ):
 
         super(EncoderBERT, self).__init__()

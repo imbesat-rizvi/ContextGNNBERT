@@ -10,7 +10,7 @@ class FCNBERT(EncoderBERT):
         self,
         encoder,
         num_labels=2,
-        trainable_encoder=False,
+        trainable_encoder=True,
         num_layers=2,
         hidden_channels=64,
         dropout=0.2,

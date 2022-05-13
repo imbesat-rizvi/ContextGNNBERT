@@ -35,16 +35,16 @@ def main(
     config_name="boolq",
     label_col=None,
     pos_label=1,
-    cols_for_context=["passage", "question"],
-    context_corpus_splits=["train", "validation", "test"],
+    input_text_cols=["passage", "question"],
+    context_corpus_splits="train",
     context_masker="TFIDFContextMasker",
     context_masker_init_kwargs={},
     context_mask_fn_kwargs={"percentile_cutoff": (75, 50)},
     truncation_strategy="only_first",
     encoder_model="bert-base-uncased",
-    trainable_encoder=False,
-    classifier_net="ContextAveraged",
-    gnn_kwargs=dict(heads=1),
+    trainable_encoder=True,
+    classifier_net="GATConv",
+    gnn_kwargs={},
     dropout=0.2,
     num_layers=3,
     hidden_channels=[256, 64],
@@ -89,8 +89,8 @@ def main(
     # print an overview of the dataset
     print(dataset)
 
-    if isinstance(cols_for_context, str):
-        context_corpus_col = cols_for_context
+    if isinstance(input_text_cols, str):
+        context_corpus_col = input_text_cols
     else:
         context_corpus_col = "context_corpus"
 
@@ -100,7 +100,7 @@ def main(
     dataset = tokenize_dataset(
         dataset,
         tokenizer=tokenizer,
-        tokenizing_fields=cols_for_context,
+        tokenizing_fields=input_text_cols,
         truncation=truncation_strategy,
         padding="max_length",
         max_length=max_tokenized_length,
@@ -121,7 +121,7 @@ def main(
 
     else:
 
-        context_corpus = keep_cols(dataset, cols=cols_for_context)
+        context_corpus = keep_cols(dataset, cols=input_text_cols)
 
         if isinstance(context_corpus_splits, str):
             context_corpus = context_corpus[context_corpus_splits]
@@ -132,7 +132,7 @@ def main(
 
         context_corpus = hstack_cols(
             context_corpus,
-            cols=cols_for_context,
+            cols=input_text_cols,
             stacked_col_name=context_corpus_col,
         )
 
@@ -143,7 +143,7 @@ def main(
         )
 
         dataset = context_masker.insert_context_mask(
-            dataset, cols=cols_for_context, **context_mask_fn_kwargs
+            dataset, cols=input_text_cols, **context_mask_fn_kwargs
         )
 
         if classifier_net == "ContextAveraged":
@@ -153,7 +153,7 @@ def main(
                 encoder=encoder,
                 num_labels=num_labels,
                 trainable_encoder=trainable_encoder,
-                num_context_types=(1 if isinstance(cols_for_context, str) else 2),
+                num_context_types=(1 if isinstance(input_text_cols, str) else 2),
                 num_layers=num_layers,
                 hidden_channels=hidden_channels,
                 dropout=dropout,
@@ -320,7 +320,9 @@ def main(
 if __name__ == "__main__":
     args = parser.parse_args()
 
-    encoder_training = "tuned_encoder" if args.trainable_encoder else "untuned_encoder"
+    encoder_training = (
+        "untuned_encoder" if args.non_trainable_encoder else "tuned_encoder"
+    )
 
     wandb.login()  # prompts for logging in if not done already
     wandb.init(
@@ -344,8 +346,8 @@ if __name__ == "__main__":
 
     if len(args.hidden_channels) == 1:
         args.hidden_channels = args.hidden_channels[0]
-    if len(args.cols_for_context) == 1:
-        args.cols_for_context = args.cols_for_context[0]
+    if len(args.input_text_cols) == 1:
+        args.input_text_cols = args.input_text_cols[0]
     if len(args.context_corpus_splits) == 1:
         args.context_corpus_splits = args.context_corpus_splits[0]
 
@@ -354,14 +356,14 @@ if __name__ == "__main__":
         config_name=config_name,
         label_col=args.label_col,
         pos_label=args.pos_label,
-        cols_for_context=args.cols_for_context,
+        input_text_cols=args.input_text_cols,
         context_corpus_splits=args.context_corpus_splits,
         context_masker=args.context_masker,
         context_masker_init_kwargs=args.context_masker_init_kwargs,
         context_mask_fn_kwargs=args.context_mask_fn_kwargs,
         truncation_strategy=args.truncation_strategy,
         encoder_model=args.encoder_model,
-        trainable_encoder=args.trainable_encoder,
+        trainable_encoder=(not args.non_trainable_encoder),
         classifier_net=args.classifier_net,
         gnn_kwargs=args.gnn_kwargs,
         dropout=args.dropout,

@@ -10,7 +10,7 @@ class ContextAveragedBERT(FCNBERT):
         self,
         encoder,
         num_labels=2,
-        trainable_encoder=False,
+        trainable_encoder=True,
         num_context_types=1,
         num_layers=2,
         hidden_channels=64,
