@@ -1,6 +1,23 @@
-from datasets import DatasetDict, concatenate_datasets
+from datasets import load_dataset, DatasetDict, concatenate_datasets
 from transformers import AutoTokenizer, AutoModel
 
+
+def load_dataset_with_split_map(
+    dataset_name,
+    config_name=None,
+    split_map={"train": "train", "validation": "validation", "test": "test"},
+):
+
+    orig_dataset = load_dataset(dataset_name, name=config_name)
+
+    dataset = DatasetDict()
+    for k, v in split_map.items():
+        if isinstance(v, str):
+            dataset[k] = orig_dataset[v]
+        else:
+            dataset[k] = concatenate_datasets([orig_dataset[s] for s in v])
+
+    return dataset
 
 def keep_cols(dataset, cols=[]):
 

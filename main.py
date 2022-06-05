@@ -7,13 +7,13 @@ from sklearn.utils.class_weight import compute_class_weight
 from datasets import load_dataset, ClassLabel, concatenate_datasets, DatasetDict
 
 from data_utils.hf_utils import (
-    keep_cols,
-    hstack_cols,
-    get_tokenizer_encoder,
+    load_dataset_with_split_map,
+    get_tokenizer_encoder, 
     tokenize_dataset,
 )
 
 import ContextMasker
+from ContextMasker import TFIDFContextMasker
 from models import FCNBERT, ContextGNNBERT, ContextAveragedBERT
 from models.utils import HFTrainer, compute_aprfbeta, to_labels
 
@@ -38,6 +38,7 @@ def main(
     split_map={"train": "train", "validation": "validation", "test": "test"},
     context_corpus_splits="train",
     context_masker="TFIDFContextMasker",
+    context_masker_load_path=None,
     context_masker_init_kwargs={},
     context_mask_fn_kwargs={"percentile_cutoff": (75, 50)},
     truncation_strategy="only_first",
@@ -61,16 +62,14 @@ def main(
     no_class_weight=False,
 ):
 
-    orig_dataset = load_dataset(dataset_name, name=config_name)
-    # orig_dataset = DatasetDict({k: v.select(range(10)) for k, v in orig_dataset.items()})
-    num_labels = None
+    dataset = load_dataset_with_split_map(
+        dataset_name, 
+        config_name=config_name,
+        split_map=split_map,
+    )
 
-    dataset = DatasetDict()
-    for k, v in split_map.items():
-        if isinstance(v, str):
-            dataset[k] = orig_dataset[v]
-        else:
-            dataset[k] = concatenate_datasets([orig_dataset[s] for s in v])
+    # dataset = DatasetDict({k: v.select(range(10)) for k, v in dataset.items()})
+    num_labels = None
 
     if label_col is None:
         for feat_name, feat_class in dataset["train"].features.items():
@@ -97,11 +96,6 @@ def main(
 
     # print an overview of the dataset
     print(dataset)
-
-    if isinstance(input_text_cols, str):
-        context_corpus_col = input_text_cols
-    else:
-        context_corpus_col = "context_corpus"
 
     tokenizer, encoder = get_tokenizer_encoder(encoder_model=encoder_model)
     max_tokenized_length = encoder.config.max_position_embeddings
@@ -130,26 +124,17 @@ def main(
 
     else:
 
-        context_corpus = keep_cols(dataset, cols=input_text_cols)
-
-        if isinstance(context_corpus_splits, str):
-            context_corpus = context_corpus[context_corpus_splits]
+        context_masker_class = ContextMasker.__dict__[context_masker]
+        if context_masker_load_path:
+            context_masker = context_masker_class.load(context_masker_load_path)
         else:
-            context_corpus = concatenate_datasets(
-                [context_corpus[i] for i in context_corpus_splits]
+            context_masker = context_masker_class.from_dataset(
+                dataset,
+                input_text_cols,
+                use_splits=context_corpus_splits,
+                tokenizer=tokenizer,
+                **context_masker_init_kwargs,
             )
-
-        context_corpus = hstack_cols(
-            context_corpus,
-            cols=input_text_cols,
-            stacked_col_name=context_corpus_col,
-        )
-
-        context_masker = ContextMasker.__dict__[context_masker](
-            context_corpus[context_corpus_col],
-            tokenizer=tokenizer,
-            **context_masker_init_kwargs,
-        )
 
         dataset = context_masker.insert_context_mask(
             dataset, cols=input_text_cols, **context_mask_fn_kwargs
@@ -195,22 +180,29 @@ def main(
     trainer_dir.mkdir(parents=True, exist_ok=True)
     output_dir = trainer_dir / run_name
 
+    eval_args = {}
+    if dataset.get("validation"):
+        eval_args = dict(
+            evaluation_strategy="epoch",
+            per_device_eval_batch_size=batch_size,
+            metric_for_best_model="eval_loss",
+            greater_is_better=False,  # as smaller loss is better
+            save_strategy="epoch", # load_best_model_at_end requires the save and eval strategy to match
+            save_total_limit=10,  # deletes older checkpoints on reaching this limit
+        )
+
     train_args = TrainingArguments(
         run_name=run_name,
         report_to="wandb",
         num_train_epochs=num_train_epochs,
+        # no_cuda=True,
         no_cuda=(not torch.cuda.is_available()),
         output_dir=output_dir,
-        evaluation_strategy="epoch",
         per_device_train_batch_size=batch_size,
-        per_device_eval_batch_size=batch_size,
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,  # as smaller loss is better
         remove_unused_columns=False,
         logging_strategy="epoch",
         load_best_model_at_end=True,
-        save_strategy="epoch",
-        save_total_limit=10,  # deletes older checkpoints on reaching this limit
+        **eval_args,
     )
 
     num_train_steps = int(
@@ -373,6 +365,7 @@ if __name__ == "__main__":
         split_map=args.split_map,
         context_corpus_splits=args.context_corpus_splits,
         context_masker=args.context_masker,
+        context_masker_load_path=args.context_masker_load_path,
         context_masker_init_kwargs=args.context_masker_init_kwargs,
         context_mask_fn_kwargs=args.context_mask_fn_kwargs,
         truncation_strategy=args.truncation_strategy,

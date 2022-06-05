@@ -52,6 +52,11 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--context_masker_load_path",
+    help="Path of a context masker, if one is already fit and needs to be loaded",
+)
+
+parser.add_argument(
     "--context_masker_init_kwargs",
     default={},
     help="Initiiazation kwargs for context masker",
