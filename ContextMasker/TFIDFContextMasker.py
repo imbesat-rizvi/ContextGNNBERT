@@ -22,7 +22,7 @@ class TFIDFContextMasker(object):
         self,
         corpus,
         tokenizer=None,
-        lowercase=False, # leave it up to tokenizer by default
+        lowercase=False,  # leave it up to tokenizer by default
         max_df=1.0,
         min_df=1,
         ngram_range=(1, 1),
@@ -42,19 +42,19 @@ class TFIDFContextMasker(object):
 
     @classmethod
     def from_dataset(
-        cls, 
+        cls,
         dataset,
         corpus_cols,
         use_splits="train",
         tokenizer="bert-base-uncased",
-        lowercase=False, # leave it up to tokenizer by default
+        lowercase=False,  # leave it up to tokenizer by default
         max_df=1.0,
         min_df=1,
         ngram_range=(1, 1),
     ):
-        
+
         context_corpus = keep_cols(dataset, cols=corpus_cols)
-        
+
         if isinstance(context_corpus, DatasetDict):
             if isinstance(use_splits, str):
                 context_corpus = context_corpus[use_splits]
@@ -88,12 +88,12 @@ class TFIDFContextMasker(object):
 
         return context_masker
 
-    def save(self, path="data/TFIDFContextMasker.pkl"):
+    def save(self, path="data/TFIDFContextMasker.jb"):
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(self, path)
 
-    def load(self, path="data/TFIDFContextMasker.pkl"):
+    def load(self, path="data/TFIDFContextMasker.jb"):
         return joblib.load(path)
 
     def insert_tfidf_token_ids(
@@ -163,7 +163,7 @@ class TFIDFContextMasker(object):
 
 if __name__ == "__main__":
     parser = ArgumentParser(description="TFIDF based context masker")
-    
+
     parser.add_argument(
         "--dataset_name",
         default="super_glue:boolq",
@@ -202,7 +202,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--save_path",
-        default="data/TFIDFContextMasker.pkl",
+        default="data/TFIDFContextMasker.jb",
         help="Path of a context masker to be saved",
     )
 
@@ -223,9 +223,8 @@ if __name__ == "__main__":
     if len(args.use_splits) == 1:
         args.use_splits = args.use_splits[0]
 
-
     dataset = load_dataset_with_split_map(
-        dataset_name, 
+        dataset_name,
         config_name=config_name,
         split_map=args.split_map,
     )

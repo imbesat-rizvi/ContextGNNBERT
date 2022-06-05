@@ -8,7 +8,7 @@ from datasets import load_dataset, ClassLabel, concatenate_datasets, DatasetDict
 
 from data_utils.hf_utils import (
     load_dataset_with_split_map,
-    get_tokenizer_encoder, 
+    get_tokenizer_encoder,
     tokenize_dataset,
 )
 
@@ -63,7 +63,7 @@ def main(
 ):
 
     dataset = load_dataset_with_split_map(
-        dataset_name, 
+        dataset_name,
         config_name=config_name,
         split_map=split_map,
     )
@@ -187,7 +187,7 @@ def main(
             per_device_eval_batch_size=batch_size,
             metric_for_best_model="eval_loss",
             greater_is_better=False,  # as smaller loss is better
-            save_strategy="epoch", # load_best_model_at_end requires the save and eval strategy to match
+            save_strategy="epoch",  # load_best_model_at_end requires the save and eval strategy to match
             save_total_limit=10,  # deletes older checkpoints on reaching this limit
         )
 

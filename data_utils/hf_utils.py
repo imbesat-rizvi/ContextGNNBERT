@@ -13,11 +13,16 @@ def load_dataset_with_split_map(
     dataset = DatasetDict()
     for k, v in split_map.items():
         if isinstance(v, str):
-            dataset[k] = orig_dataset[v]
+            if v in orig_dataset:
+                dataset[k] = orig_dataset[v]
+
         else:
-            dataset[k] = concatenate_datasets([orig_dataset[s] for s in v])
+            v = [s for s in v if s in orig_dataset]
+            if v:
+                dataset[k] = concatenate_datasets([orig_dataset[s] for s in v])
 
     return dataset
+
 
 def keep_cols(dataset, cols=[]):
 
