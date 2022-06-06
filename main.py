@@ -57,6 +57,7 @@ def main(
     optimizer_kwargs={"lr": 1e-3, "eps": 1e-8},
     encoder_optimizer_kwargs={},
     num_warmup_steps=0,
+    metric_for_best_model="eval_loss",
     early_stopping_patience=5,
     early_stopping_threshold=1e-4,
     no_class_weight=False,
@@ -185,8 +186,8 @@ def main(
         eval_args = dict(
             evaluation_strategy="epoch",
             per_device_eval_batch_size=batch_size,
-            metric_for_best_model="eval_loss",
-            greater_is_better=False,  # as smaller loss is better
+            metric_for_best_model=metric_for_best_model,
+            greater_is_better=(False if metric_for_best_model == "eval_loss" else True),
             save_strategy="epoch",  # load_best_model_at_end requires the save and eval strategy to match
             save_total_limit=10,  # deletes older checkpoints on reaching this limit
         )
@@ -384,6 +385,7 @@ if __name__ == "__main__":
         optimizer_kwargs=args.optimizer_kwargs,
         encoder_optimizer_kwargs=args.encoder_optimizer_kwargs,
         num_warmup_steps=args.num_warmup_steps,
+        metric_for_best_model=args.metric_for_best_model,
         early_stopping_patience=args.early_stopping_patience,
         early_stopping_threshold=args.early_stopping_threshold,
         no_class_weight=args.no_class_weight,

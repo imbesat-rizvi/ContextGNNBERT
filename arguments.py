@@ -184,6 +184,13 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--metric_for_best_model",
+    default="eval_loss",
+    choices=["eval_loss", "eval_accuracy", "eval_precision", "eval_recall", "eval_f1"],
+    help="metric to decide the best model",
+)
+
+parser.add_argument(
     "--early_stopping_patience",
     type=int,
     default=5,
